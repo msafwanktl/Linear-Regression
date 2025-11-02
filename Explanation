@@ -1,0 +1,199 @@
+This code implements **Batch Gradient Descent** from scratch to find the best-fit line (linear regression) for a set of synthetically generated data.
+
+Here is a step-by-step breakdown of what each part does.
+
+-----
+
+### 1\. 📦 Setup and Data Generation
+
+This section imports `numpy` and creates a simple, noisy dataset based on the line $y = 3x + 2$.
+
+```python
+import numpy as np 
+
+rng = np.random.default_rng(42)  
+X = np.linspace(0, 10, 50)       
+noise = rng.normal(0, 1.0, size=X.shape)  
+y = 3.0 * X + 2.0 + noise       
+```
+
+  * `import numpy as np`: Imports the **NumPy** library, the standard for numerical operations in Python.
+  * `rng = np.random.default_rng(42)`: Creates a modern random number generator. 
+The **seed** (`42`) ensures that the "random" numbers generated are the same every time the script runs, making the results reproducible.
+  * `X = np.linspace(0, 10, 50)`: Creates a NumPy array `X` (our feature) with 50 evenly spaced numbers between 0 and 10.
+  * `noise = rng.normal(0, 1.0, size=X.shape)`:
+Generates 50 random noise values drawn from a normal distribution (a "bell curve") with a mean of 0 and a standard deviation of 1.0.
+  * `y = 3.0 * X + 2.0 + noise`: Creates our target variable `y`. 
+This is the "ground truth" linear relationship **$y = 3x + 2$** (slope=3, intercept=2), 
+but with the random `noise` added to make it a realistic, imperfect dataset.
+
+The **goal** of the rest of the code is to analyze `X` and `y` and figure out that the original slope and intercept were approximately `3.0` and `2.0`.
+
+-----
+
+### 2\. 📉 Feature Scaling
+
+This section scales the `X` data. This is a crucial step for making gradient descent algorithms converge quickly and reliably.
+
+```python
+X_mean, X_std = X.mean(), X.std() 
+X_scaled = (X - X_mean) / X_std  
+```
+
+  * `X_mean, X_std = X.mean(), X.std()`: Calculates the mean (average) and standard deviation (a measure of spread) of our `X` data.
+  * `X_scaled = (X - X_mean) / X_std`: Applies **Standard Scaling**.
+This transformation gives `X_scaled` a mean of 0 and a standard deviation of 1. We will train our model using this scaled data.
+
+-----
+
+### 3\. ⚙️ Model Setup (Design Matrix & Parameters)
+
+This part prepares the data and model parameters for the mathematical operations of training.
+
+```python
+X_design = np.c_[np.ones_like(X_scaled), X_scaled] 
+
+theta = np.zeros(2, dtype=float) 
+```
+
+  * `X_design = np.c_[np.ones_like(X_scaled), X_scaled]`: This creates the **Design Matrix** (often just called `X_mat`).
+      * `np.ones_like(X_scaled)` creates a column vector of 50 ones.
+      * `np.c_` is a NumPy function that stacks arrays together as columns.
+      * `X_design` is now a $50 \times 2$ matrix. The first column is all ones (for the intercept), and the second is our `X_scaled` data.
+      * **Why?** This lets us express the linear equation $y = \theta_0 + \theta_1 x$ as a single matrix multiplication:
+$y = \mathbf{X}_{design} \cdot \theta$.
+          * $\theta_0$ (the intercept) gets multiplied by the column of ones.
+          * $\theta_1$ (the slope) gets multiplied by the `X_scaled` data.
+  * `theta = np.zeros(2, dtype=float)`: Initializes our parameter vector $\theta = [\theta_0, \theta_1]$ as `[0.0, 0.0]`.
+These are the **weights** (intercept and slope) that our model will "learn."
+
+-----
+
+### 4\. 🧭 Hyperparameters
+
+These are settings that we, the programmers, choose to control the training process.
+
+```python
+alpha = 0.1       
+epochs = 1000     
+```
+
+  * `alpha = 0.1`: This is the **learning rate**. It controls how big of a "step" the algorithm takes downhill during each epoch.
+  * `epochs = 1000`: This is the number of times the algorithm will iterate over the entire dataset to update the `theta` parameters.
+
+-----
+
+### 5\. 🛠️ Helper Functions (Model, Loss, Gradient)
+
+These functions define the core logic of our model and the gradient descent algorithm.
+
+```python
+def predict(X_mat, theta_vec):
+    return X_mat @ theta_vec 
+
+def mse(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2) 
+
+def gradient(X_mat, y_true, theta_vec):
+    n = X_mat.shape[0]
+    y_pred = predict(X_mat, theta_vec)
+    grad = -(2.0 / n) * (X_mat.T @ (y_true - y_pred)) 
+    return grad 
+```
+
+  * `def predict(...)`: Calculates the model's predictions. The `@` symbol is NumPy's operator for **matrix multiplication**.
+  * `def mse(...)`: Calculates the **Mean Squared Error** (MSE). 
+This is our **loss function**—it measures the average squared difference between the true `y` values and our `y_pred` predictions.
+A lower MSE is better.
+  * `def gradient(...)`: This is the most important mathematical part. It calculates the **gradient**, 
+which is the derivative of the MSE loss function with respect to our parameters `theta`.
+      * `n = X_mat.shape[0]`: Gets the number of data points ($n=50$).
+      * `y_pred = predict(...)`: Makes predictions using the current `theta`.
+      * `grad = ...`: This line is the vectorized formula for the gradient of the MSE. 
+It calculates a vector that points "uphill" (in the direction of *most* error).
+
+-----
+
+### 6\. 🔄 Gradient Descent Training Loop
+
+This is where the actual "learning" happens. The loop repeatedly refines `theta` to minimize the MSE loss.
+
+```python
+loss_history = []
+for epoch in range(epochs):
+    y_pred = predict(X_design, theta)     
+    loss = mse(y, y_pred)                 
+    loss_history.append(loss)            
+    grad = gradient(X_design, y, theta)   
+    theta -= alpha * grad                 
+```
+
+  * `loss_history = []`: Creates an empty list to store the loss at each epoch, so we can see if the model is improving.
+  * `for epoch in range(epochs)`: Starts the loop that runs 1000 times.
+  * `y_pred = predict(X_design, theta)`: Makes predictions using the current `theta`.
+  * `loss = mse(y, y_pred)`: Calculates how wrong the predictions are.
+  * `loss_history.append(loss)`: Saves the current loss value.
+  * `grad = gradient(X_design, y, theta)`: Calculates the gradient (the direction of "uphill").
+  * `theta -= alpha * grad`: The **parameter update step**. We take the gradient `grad` (uphill),
+multiply it by our learning rate `alpha` (our step size), and *subtract* it from `theta` to move "downhill" towards a lower loss.
+
+-----
+
+### 7\. 🔓 Un-scaling Parameters
+
+After the loop, `theta` contains the best parameters, but they are for the *scaled* data. This section converts them back to the *original* data's scale.
+
+```python
+theta0_scaled, theta1_scaled = theta 
+
+intercept_original = theta0_scaled - theta1_scaled * (X_mean / X_std)  
+slope_original = theta1_scaled / X_std                                 
+```
+
+  * `theta0_scaled, theta1_scaled = theta`: Unpacks the trained parameters into `theta0` (intercept for scaled data) and `theta1` (slope for scaled data).
+  * `intercept_original = ...` and `slope_original = ...`: These lines are derived from algebraic substitution.
+      * We trained: $y = \theta_0^{scaled} + \theta_1^{scaled} \cdot X_{scaled}$
+      * We know: $X_{scaled} = (X - X_{mean}) / X_{std}$
+      * By substituting the second equation into the first and rearranging to solve for the form $y = b + mx$,
+we get these two formulas for the original intercept ($b$) and slope ($m$).
+
+-----
+
+### 8\. 📊 Results and Predictions
+
+This part prints the final learned parameters and uses them to make new predictions.
+
+```python
+print("Fitted parameters (original scale):")
+print(f"Intercept ≈ {intercept_original:.3f}, Slope ≈ {slope_original:.3f}") 
+print(f"Final MSE: {loss_history[-1]:.3f}")
+
+x_new = np.array([[-1.0], [0.0], [5.0], [12.0]]).ravel()  
+y_new = intercept_original + slope_original * x_new      
+print("Predictions:", y_new)  
+```
+
+  * `print(...)`: Prints the final *un-scaled* intercept and slope. These should be close to the original `2.0` and `3.0`.
+  * `print(f"Final MSE: ...")`: Prints the loss from the very last epoch.
+  * `x_new = ...`: Creates a new array of `X` values (in their original, un-scaled form) to test our model. `.ravel()` flattens the array.
+  * `y_new = ...`: Makes new predictions using our `intercept_original` and `slope_original` parameters.
+  * `print("Predictions:", y_new)`: Shows the model's predictions for `x_new`.
+
+-----
+
+### 9\. ✅ Validation with Scikit-learn
+
+This final section is a "sanity check" to see if our from-scratch implementation matches the results from the popular `scikit-learn` library.
+
+```python
+try:
+    from sklearn.linear_model import LinearRegression 
+    lr = LinearRegression().fit(X.reshape(-1, 1), y)  
+    print("Sklearn Intercept, Slope:", lr.intercept_, lr.coef_[0]) 
+except Exception as e:
+    print("scikit-learn not available; skipping comparison.") 
+```
+
+  * `try...except...`: This block will try to run the code, but if `scikit-learn` isn't installed, it will "catch" the error and print a message instead of crashing.
+  * `lr = LinearRegression().fit(X.reshape(-1, 1), y)`: This one line creates and trains `scikit-learn`'s `LinearRegression` model. (`.reshape(-1, 1)` is required by `sklearn`).
+  * `print("Sklearn Intercept, Slope:", ...)`: Prints the intercept (`lr.intercept_`) and slope (`lr.coef_[0]`) calculated by `sklearn`. If our code is correct, these values should be almost identical to our `intercept_original` and `slope_original`.
